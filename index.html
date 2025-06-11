@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мій Персональний Довідник Знань (З Редактором Бази)</title>
+    <style>
+        /* Стилі з попередньої версії (для body, main-content, text-editor, popup, etc.) */
+        body { font-family: sans-serif; margin: 20px; background-color: #f0f2f5; color: #333; }
+        #main-content, #db-management-container { max-width: 800px; margin: 20px auto; background-color: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        #text-editor { min-height: 300px; border: 1px solid #ddd; padding: 15px; font-size: 1.1em; line-height: 1.6; outline: none; margin-bottom: 20px;}
+
+        /* Стилі для попапу */
+        .popup {
+            position: absolute; background-color: #fff; border: 1px solid #ccc;
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.15); padding: 15px; border-radius: 6px;
+            z-index: 1000; display: none; opacity: 0; transition: opacity 0.2s ease-in-out;
+            max-width: 350px; text-align: left;
+        }
+        .popup-title { font-size: 1.3em; margin-top: 0; margin-bottom: 8px; color: #333; }
+        .popup-content { font-size: 0.95em; line-height: 1.5; color: #555; margin-bottom: 10px; }
+        .popup-links { margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
+        .popup-links a { display: block; margin-bottom: 5px; color: #007bff; text-decoration: none; }
+        .popup-links a:hover { text-decoration: underline; }
+        .close-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; font-size: 1.2em; cursor: pointer; color: #888; }
+
+
+        /* Стилі для управління базою даних */
+        #db-management-container h2 { margin-top: 0; }
+        #db-management-form label { display: block; margin-bottom: 5px; font-weight: bold; }
+        #db-management-form input[type="text"],
+        #db-management-form textarea {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        #db-management-form textarea { min-height: 100px; resize: vertical; }
+        #db-management-form button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 10px;
+        }
+        #db-management-form button:hover { background-color: #218838; }
+        #db-management-form #delete-term-btn { background-color: #dc3545; }
+        #db-management-form #delete-term-btn:hover { background-color: #c82333; }
+
+        #term-list {
+            list-style-type: none;
+            padding: 0;
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        #term-list li {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #term-list li:hover { background-color: #e9e9e9; }
+        #term-list li.selected { background-color: #cce5ff; font-weight: bold; }
+        #term-list li span { flex-grow: 1; }
+        #term-list li button.edit-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        #term-list li button.edit-btn:hover { background-color: #0056b3; }
+        #db-status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        #db-status-message.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        #db-status-message.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    </style>
+</head>
+<body>
+    <h1>Мій Персональний Довідник Знань</h1>
+
+    <div id="main-content">
+        <h2>Ваш Основний Текст</h2>
+        <div id="text-editor" contenteditable="true">
+            <p><b>Геміні</b> — це велика мовна модель від Google AI. Це дуже потужний <b>ШІ</b>, який може розуміти та генерувати текст, відповідати на запитання та створювати різноманітний креативний контент. <b>Python</b> є однією з найпопулярніших мов програмування для розробки ШІ.</p>
+            <p>Виділіть будь-яке слово, щоб отримати пояснення з вашої бази.</p>
+        </div>
+    </div>
+
+    <div id="knowledge-popup" class="popup">
+        <button class="close-btn">×</button>
+        <h3 class="popup-title"></h3>
+        <p class="popup-content"></p>
+        <div class="popup-links">
+            <h4>Додаткові Ресурси:</h4>
+            </div>
+    </div>
+
+    <div id="db-management-container">
+        <h2>Керування Базою Знань</h2>
+        <form id="db-management-form">
+            <label for="term-input">Термін (ключове слово, у нижньому регістрі):</label>
+            <input type="text" id="term-input" placeholder="наприклад, 'штучний інтелект'" required>
+
+            <label for="explanation-textarea">Пояснення (Суть + Роз'яснення):</label>
+            <textarea id="explanation-textarea" placeholder="Введіть повне пояснення терміну..." required></textarea>
+
+            <label for="resources-textarea">Додаткові Ресурси (одне посилання на рядок, у форматі: [Текст посилання](URL)):</label>
+            <textarea id="resources-textarea" placeholder="[Вікіпедія](https://uk.wikipedia.org/wiki/Штучний_інтелект)&#10;[Відео про ШІ](https://youtube.com/watch?v=abc)"></textarea>
+
+            <button type="submit" id="save-term-btn">Зберегти/Оновити Термін</button>
+            <button type="button" id="delete-term-btn">Видалити Термін</button>
+        </form>
+
+        <div id="db-status-message" style="display: none;"></div>
+
+        <h3>Ваші Терміни:</h3>
+        <ul id="term-list">
+            </ul>
+        <button id="export-db-btn" style="margin-top: 15px;">Експортувати Базу (JSON)</button>
+        <input type="file" id="import-db-input" accept=".json" style="display: none;">
+        <button id="import-db-btn">Імпортувати Базу (JSON)</button>
+
+    </div>
+
+
+    <script>
+        // --- Змінні та Елементи DOM ---
+        const textEditor = document.getElementById('text-editor');
+        const knowledgePopup = document.getElementById('knowledge-popup');
+        const popupTitle = knowledgePopup.querySelector('.popup-title');
+        const popupContent = knowledgePopup.querySelector('.popup-content');
+        const popupLinks = knowledgePopup.querySelector('.popup-links');
+        const closeBtn = knowledgePopup.querySelector('.close-btn');
+
+        const dbManagementForm = document.getElementById('db-management-form');
+        const termInput = document.getElementById('term-input');
+        const explanationTextarea = document.getElementById('explanation-textarea');
+        const resourcesTextarea = document.getElementById('resources-textarea');
+        const saveTermBtn = document.getElementById('save-term-btn');
+        const deleteTermBtn = document.getElementById('delete-term-btn');
+        const termList = document.getElementById('term-list');
+        const dbStatusMessage = document.getElementById('db-status-message');
+        const exportDbBtn = document.getElementById('export-db-btn');
+        const importDbBtn = document.getElementById('import-db-btn');
+        const importDbInput = document.getElementById('import-db-input');
+
+        let knowledgeBase = {}; // Ваша база знань
+
+        // --- Функції Збереження/Завантаження Бази Знань ---
+
+        // Завантажуємо базу знань з Local Storage
+        function loadKnowledgeBase() {
+            const savedBase = localStorage.getItem('myPersonalKnowledgeBase');
+            if (savedBase) {
+                try {
+                    knowledgeBase = JSON.parse(savedBase);
+                    console.log("База знань завантажена з Local Storage:", knowledgeBase);
+                } catch (e) {
+                    console.error("Помилка парсингу бази знань з Local Storage:", e);
+                    knowledgeBase = {}; // Очищаємо, якщо помилка
+                }
+            } else {
+                // Початкова база знань, якщо нічого не збережено
+                knowledgeBase = {
+                    "геміні": {
+                        "explanation": "Геміні — це велика мовна модель, розроблена Google AI, здатна генерувати текст, відповідати на запитання та виконувати різні завдання.",
+                        "resources": [
+                            {"text": "Детальніше про Gemini (Google AI)", "url": "https://blog.google/technology/ai/google-gemini-ai/"},
+                            {"text": "Що таке LLM (Вікіпедія)", "url": "https://uk.wikipedia.org/wiki/Велика_мовна_модель"}
+                        ]
+                    },
+                    "штучний інтелект": {
+                        "explanation": "Штучний інтелект (ШІ) — це імітація людського інтелекту машинами, які навчаються, вирішують проблеми та приймають рішення.",
+                        "resources": [
+                            {"text": "Штучний інтелект (Вікіпедія)", "url": "https://uk.wikipedia.org/wiki/Штучний_інтелект"}
+                        ]
+                    }
+                };
+                saveKnowledgeBase(); // Зберігаємо початкову базу
+            }
+            renderTermList(); // Оновлюємо список термінів в інтерфейсі
+        }
+
+        // Зберігаємо базу знань в Local Storage
+        function saveKnowledgeBase() {
+            localStorage.setItem('myPersonalKnowledgeBase', JSON.stringify(knowledgeBase));
+            console.log("База знань збережена в Local Storage.");
+        }
+
+        // --- Функції для Управління Попапом ---
+
+        function showPopup(term, rect) {
+            const data = knowledgeBase[term];
+            popupTitle.textContent = term.charAt(0).toUpperCase() + term.slice(1);
+            popupContent.textContent = data.explanation;
+
+            popupLinks.innerHTML = '<h4>Додаткові Ресурси:</h4>'; // Заголовок для ресурсів
+            if (data.resources && data.resources.length > 0) {
+                data.resources.forEach(res => {
+                    const link = document.createElement('a');
+                    link.href = res.url;
+                    link.textContent = res.text;
+                    link.target = '_blank';
+                    popupLinks.appendChild(link);
+                });
+            } else {
+                popupLinks.innerHTML += '<p>Додаткові ресурси відсутні.</p>';
+            }
+
+            knowledgePopup.style.left = `${rect.right + 10}px`;
+            knowledgePopup.style.top = `${rect.top + window.scrollY}px`;
+            knowledgePopup.style.display = 'block';
+            setTimeout(() => knowledgePopup.style.opacity = '1', 10);
+
+            setTimeout(() => {
+                document.addEventListener('click', closePopupOnClickOutside);
+            }, 100);
+        }
+
+        function hidePopup() {
+            knowledgePopup.style.opacity = '0';
+            setTimeout(() => {
+                knowledgePopup.style.display = 'none';
+                document.removeEventListener('click', closePopupOnClickOutside);
+            }, 200);
+        }
+
+        function closePopupOnClickOutside(event) {
+            // Перевіряємо, чи клік був за межами попапу І не на редакторі тексту
+            if (!knowledgePopup.contains(event.target) && !textEditor.contains(event.target)) {
+                hidePopup();
+            }
+        }
+
+        // --- Функції для Управління Базою Знань через Інтерфейс ---
+
+        function renderTermList() {
+            termList.innerHTML = ''; // Очищаємо список
+            const sortedTerms = Object.keys(knowledgeBase).sort();
+
+            if (sortedTerms.length === 0) {
+                termList.innerHTML = '<li>Ваша база знань порожня. Додайте терміни!</li>';
+                return;
+            }
+
+            sortedTerms.forEach(term => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${term.charAt(0).toUpperCase() + term.slice(1)}</span>
+                                <button class="edit-btn" data-term="${term}">Редагувати</button>`;
+                li.addEventListener('click', (event) => {
+                    // Якщо клік був на кнопці "Редагувати", обробляємо її
+                    if (event.target.classList.contains('edit-btn')) {
+                        editTerm(term);
+                        event.stopPropagation(); // Зупиняємо поширення, щоб не виділявся текст
+                    } else {
+                        // Інакше, просто виділяємо термін в полях форми
+                        termInput.value = term;
+                        explanationTextarea.value = knowledgeBase[term].explanation;
+                        resourcesTextarea.value = (knowledgeBase[term].resources || [])
+                            .map(r => `[${r.text}](${r.url})`)
+                            .join('\n');
+                        // Знімаємо виділення з попереднього
+                        document.querySelectorAll('#term-list li.selected').forEach(item => item.classList.remove('selected'));
+                        li.classList.add('selected'); // Виділяємо поточний
+                    }
+                });
+                termList.appendChild(li);
+            });
+        }
+
+        function editTerm(term) {
+            termInput.value = term;
+            explanationTextarea.value = knowledgeBase[term].explanation;
+            resourcesTextarea.value = (knowledgeBase[term].resources || [])
+                .map(r => `[${r.text}](${r.url})`)
+                .join('\n');
+            // Прокручуємо до форми
+            dbManagementForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Виділяємо термін у списку
+            document.querySelectorAll('#term-list li').forEach(item => {
+                if (item.querySelector('span').textContent.toLowerCase() === term) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        function parseResources(text) {
+            const resources = [];
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            const regex = /\[(.*?)\]\((.*?)\)/; // Регулярний вираз для парсингу [Текст](URL)
+
+            lines.forEach(line => {
+                const match = line.match(regex);
+                if (match && match.length === 3) {
+                    resources.push({
+                        text: match[1].trim(),
+                        url: match[2].trim()
+                    });
+                }
+            });
+            return resources;
+        }
+
+        function showStatusMessage(message, type) {
+            dbStatusMessage.textContent = message;
+            dbStatusMessage.className = `db-status-message ${type}`;
+            dbStatusMessage.style.display = 'block';
+            setTimeout(() => {
+                dbStatusMessage.style.display = 'none';
+                dbStatusMessage.className = 'db-status-message';
+            }, 3000); // Повідомлення зникає через 3 секунди
+        }
+
+        // --- Обробники Подій ---
+
+        // Обробник виділення тексту
+        textEditor.addEventListener('mouseup', (event) => {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+
+            if (selectedText.length > 0) {
+                const normalizedSelectedText = selectedText.toLowerCase();
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+
+                if (knowledgeBase[normalizedSelectedText]) {
+                    showPopup(normalizedSelectedText, rect);
+                } else {
+                    hidePopup();
+                }
+            } else {
+                hidePopup();
+            }
+        });
+
+        closeBtn.addEventListener('click', hidePopup);
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && knowledgePopup.style.display === 'block') {
+                hidePopup();
+            }
+        });
+
+        // Автоматичне збереження тексту редактора
+        textEditor.addEventListener('input', () => {
+            localStorage.setItem('myKnowledgeTextEditorContent', textEditor.innerHTML);
+        });
+
+
+        // Обробник форми управління базою знань
+        dbManagementForm.addEventListener('submit', (event) => {
+            event.preventDefault(); // Запобігаємо перезавантаженню сторінки
+
+            const term = termInput.value.toLowerCase().trim();
+            const explanation = explanationTextarea.value.trim();
+            const resources = parseResources(resourcesTextarea.value);
+
+            if (term && explanation) {
+                knowledgeBase[term] = { explanation, resources };
+                saveKnowledgeBase();
+                renderTermList(); // Оновлюємо список
+                dbManagementForm.reset(); // Очищаємо форму
+                showStatusMessage('Термін успішно збережено/оновлено!', 'success');
+                document.querySelectorAll('#term-list li.selected').forEach(item => item.classList.remove('selected')); // Знімаємо виділення
+            } else {
+                showStatusMessage('Будь ласка, заповніть поля "Термін" та "Пояснення".', 'error');
+            }
+        });
+
+        deleteTermBtn.addEventListener('click', () => {
+            const termToDelete = termInput.value.toLowerCase().trim();
+            if (termToDelete && knowledgeBase[termToDelete]) {
+                if (confirm(`Ви впевнені, що хочете видалити термін "${termToDelete}"?`)) {
+                    delete knowledgeBase[termToDelete];
+                    saveKnowledgeBase();
+                    renderTermList();
+                    dbManagementForm.reset();
+                    showStatusMessage('Термін успішно видалено!', 'success');
+                    document.querySelectorAll('#term-list li.selected').forEach(item => item.classList.remove('selected'));
+                }
+            } else {
+                showStatusMessage('Будь ласка, оберіть термін для видалення.', 'error');
+            }
+        });
+
+        // Експорт бази знань
+        exportDbBtn.addEventListener('click', () => {
+            const dataStr = JSON.stringify(knowledgeBase, null, 2); // null, 2 для красивого форматування
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'my_knowledge_base.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showStatusMessage('База знань експортована як my_knowledge_base.json', 'success');
+        });
+
+        // Імпорт бази знань
+        importDbBtn.addEventListener('click', () => {
+            importDbInput.click(); // Імітуємо клік по прихованому input type="file"
+        });
+
+        importDbInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedBase = JSON.parse(e.target.result);
+                        if (typeof importedBase === 'object' && importedBase !== null) {
+                            knowledgeBase = { ...knowledgeBase, ...importedBase }; // Об'єднуємо з існуючою або замінюємо
+                            saveKnowledgeBase();
+                            loadKnowledgeBase(); // Перезавантажуємо та рендеримо список
+                            showStatusMessage('База знань успішно імпортована!', 'success');
+                        } else {
+                            throw new Error('Недійсний формат JSON файлу.');
+                        }
+                    } catch (error) {
+                        showStatusMessage(`Помилка імпорту: ${error.message}`, 'error');
+                        console.error("Помилка імпорту JSON:", error);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+
+        // --- Ініціалізація при завантаженні сторінки ---
+        loadKnowledgeBase(); // Завантажуємо базу при старті
+        const savedText = localStorage.getItem('myKnowledgeTextEditorContent');
+        if (savedText) {
+            textEditor.innerHTML = savedText;
+        } else {
+            textEditor.innerHTML = `<p><b>Геміні</b> — це велика мовна модель від Google AI. Це дуже потужний <b>ШІ</b>, який може розуміти та генерувати текст, відповідати на запитання та створювати різноманітний креативний контент. <b>Python</b> є однією з найпопулярніших мов програмування для розробки ШІ.</p><p>Виділіть будь-яке слово, щоб отримати пояснення з вашої бази.</p>`;
+        }
+    </script>
+</body>
+</html>
